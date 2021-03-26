@@ -22,7 +22,7 @@
 #include <string.h>
 
 #include "xentrace-parser.h"
-#include "../lib/trace.h"
+#include "trace.h"
 
 #define __ARR_SSIZE 4096
 
