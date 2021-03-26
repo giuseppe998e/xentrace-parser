@@ -175,6 +175,9 @@ static int __upd_current_hstcpu(xentrace_parser xtp, xt_record *record) {
     return 1;
 }
 
+/**
+ * 
+ */
 static int __qsort_cmpr(const void *a, const void *b) {
     xt_record x = ((xt_event *) a)->rec,
               y = ((xt_event *) b)->rec;
