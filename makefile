@@ -12,14 +12,17 @@ OUTDIR = ./out
 
 #---
 .PHONY: build
-build: $(OUTDIR)/xentrace-parser.o
-	@$(CP) $(SRCDIR)/xentrace-parser.h $(OUTDIR)
-	@$(CP) $(SRCDIR)/xentrace-event.h $(OUTDIR)
+build: $(OUTDIR)/xentrace-parser.o $(OUTDIR)/xentrace-parser.h $(OUTDIR)/xentrace-event.h
 
 # ---
 $(OUTDIR)/%.o: $(SRCDIR)/%.c
 	@$(MKD) -p $(OUTDIR)
 	@$(CC) $(CFLAGS) $(CINCLD) -c $< -o $@
+
+# ---
+$(OUTDIR)/%.h: $(SRCDIR)/%.h
+	@$(MKD) -p $(OUTDIR)
+	@$(CP) $< $(OUTDIR)
 
 # ---
 .PHONY: clean
