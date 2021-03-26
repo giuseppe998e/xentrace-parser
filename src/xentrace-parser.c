@@ -175,6 +175,13 @@ static int __upd_current_hstcpu(xentrace_parser xtp, xt_record *record) {
     return 1;
 }
 
+static int __qsort_cmpr(const void *a, const void *b) {
+    xt_record x = ((xt_event *) a)->rec,
+              y = ((xt_event *) b)->rec;
+
+    return (x.tsc > y.tsc) - (x.tsc < y.tsc);
+}
+
 /**
  * 
  */
@@ -222,6 +229,9 @@ uint32_t xtp_execute(xentrace_parser xtp) {
     xt_event *new_ptr = realloc(list->ptr, sizeof(*list->ptr) * list->count);
     if (new_ptr)
         list->ptr = new_ptr;
+
+    // Sort list
+    qsort(list->ptr, list->count, sizeof(*list->ptr), __qsort_cmpr);
 
     // Return count
     return list->count;
