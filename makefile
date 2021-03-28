@@ -25,7 +25,7 @@ $(OUTDIR)/%.o: $(SRCDIR)/%.c
 # ---
 $(OUTDIR)/%.h: $(SRCDIR)/%.h
 	@$(MKD) -p $(dir $@)
-	@$(CP) $< $(dir $@)
+	@$(CP) $< $@
 
 # ---
 .PHONY: clean
