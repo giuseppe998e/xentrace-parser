@@ -31,7 +31,7 @@
  */
 struct __xentrace_parser {
     char *file;  // Trace file path
-    
+
     uint16_t higher_cpu;    // Higher CPU readed
     uint64_t last_tsc;      // Last TSC readed
     xt_header current_hrd;  // Current ev. header
@@ -45,14 +45,14 @@ struct __xentrace_parser {
 };
 
 /**
- * 
+ *
  */
 xentrace_parser xtp_init(const char *file) {
     // Check if file var is not NULL
     if (!file)
         return NULL;
 
-    // Initialize analyzer struct 
+    // Initialize analyzer struct
     struct __xentrace_parser *xtp = calloc(1, sizeof(*xtp));
     if (!xtp)
         return NULL;
@@ -104,7 +104,7 @@ static int __read_next_record(FILE *fp, xt_record* rec) {
 }
 
 /**
- * 
+ *
  */
 static int __expand_list(struct __list *list) {
     // If it is not the "second-last" element
@@ -125,7 +125,7 @@ static int __expand_list(struct __list *list) {
 }
 
 /**
- * 
+ *
  */
 static void __set_record_tsc(xentrace_parser xtp, xt_record *record) {
     // If already included, just update "last_tsc"
@@ -136,7 +136,7 @@ static void __set_record_tsc(xentrace_parser xtp, xt_record *record) {
 }
 
 /**
- * 
+ *
  */
 static int __upd_current_domvcpu(xentrace_parser xtp, xt_record *record) {
     // Check if event is "..._to_running"
@@ -155,7 +155,7 @@ static int __upd_current_domvcpu(xentrace_parser xtp, xt_record *record) {
 }
 
 /**
- * 
+ *
  */
 static int __upd_current_hstcpu(xentrace_parser xtp, xt_record *record) {
     // Check if event is a TRC_TRACE_CPU_CHANGE
@@ -171,12 +171,12 @@ static int __upd_current_hstcpu(xentrace_parser xtp, xt_record *record) {
     // Save a higher CPU value
     if (cpu > xtp->higher_cpu)
         xtp->higher_cpu = cpu;
-    
+
     return 1;
 }
 
 /**
- * 
+ *
  */
 static int __qsort_cmpr(const void *a, const void *b) {
     uint64_t x_tsc = (((xt_event *) a)->rec).tsc,
@@ -186,7 +186,7 @@ static int __qsort_cmpr(const void *a, const void *b) {
 }
 
 /**
- * 
+ *
  */
 uint32_t xtp_execute(xentrace_parser xtp) {
     struct __list *list = &xtp->list;
@@ -213,13 +213,13 @@ uint32_t xtp_execute(xentrace_parser xtp) {
         // Set record TSC
         __set_record_tsc(xtp, &rec);
 
-        // Save record into list 
+        // Save record into list
         // (and give a plus one to the event counter)
         xt_event *event = list->ptr + list->count++;
         event->hdr = xtp->current_hrd;
         event->rec = rec;
 
-        // Expand nodes list (if needed), 
+        // Expand nodes list (if needed),
         // otherwise stop reading the trace
         if (__expand_list(list) == -1)
             break;
@@ -241,21 +241,21 @@ uint32_t xtp_execute(xentrace_parser xtp) {
 }
 
 /**
- * 
+ *
  */
 uint16_t xtp_cpus_count(xentrace_parser xtp) {
     return xtp->higher_cpu + 1;
 }
 
 /**
- * 
+ *
  */
 uint32_t xtp_events_count(xentrace_parser xtp) {
     return (xtp->list).count;
 }
 
 /**
- * 
+ *
  */
 xt_event *xtp_get_event(xentrace_parser xtp, uint32_t pos) {
     if (pos >= (xtp->list).count)
@@ -265,7 +265,7 @@ xt_event *xtp_get_event(xentrace_parser xtp, uint32_t pos) {
 }
 
 /**
- * 
+ *
  */
 xt_event *xtp_next_event(xentrace_parser xtp) {
     if ((xtp->list).iter >= (xtp->list).count)
@@ -275,14 +275,14 @@ xt_event *xtp_next_event(xentrace_parser xtp) {
 }
 
 /**
- * 
+ *
  */
 void xtp_reset_iter(xentrace_parser xtp) {
     (xtp->list).iter = 0;
 }
 
 /**
- * 
+ *
  */
 void xtp_free(xentrace_parser xtp) {
     free((xtp->list).ptr);

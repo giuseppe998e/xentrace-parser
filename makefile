@@ -14,7 +14,7 @@ SOURCES := $(wildcard $(SRCDIR)/*.c)
 OBJECTS := $(subst $(SRCDIR), $(OUTDIR), $(SOURCES:.c=.o))
 
 #---
-.PHONY: build 
+.PHONY: build
 build: $(OBJECTS) $(OUTDIR)/xentrace-parser.h $(OUTDIR)/xentrace-event.h
 
 # ---

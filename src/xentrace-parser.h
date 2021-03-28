@@ -30,7 +30,7 @@
 typedef struct __xentrace_parser *xentrace_parser;
 
 /**
- * Create a new instance based on the 
+ * Create a new instance based on the
  * file path passed as an argument.
  * Returns NULL on error.
  */
@@ -38,9 +38,9 @@ xentrace_parser xtp_init(const char*);
 
 /**
  * Performs trace parsing.
- * If a trace file is damaged, it will 
+ * If a trace file is damaged, it will
  * read all events until a read error occurs.
- * If executed a second time, it returns 
+ * If executed a second time, it returns
  * only the number of previously read elements.
  * Returns zero on error.
  */
