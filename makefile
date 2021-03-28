@@ -10,19 +10,22 @@ LIBDIR = ./lib
 SRCDIR = ./src
 OUTDIR = ./out
 
+SOURCES := $(wildcard $(SRCDIR)/*.c)
+OBJECTS := $(subst $(SRCDIR), $(OUTDIR), $(SOURCES:.c=.o))
+
 #---
-.PHONY: build
-build: $(OUTDIR)/xentrace-parser.o $(OUTDIR)/xentrace-parser.h $(OUTDIR)/xentrace-event.h
+.PHONY: build 
+build: $(OBJECTS) $(OUTDIR)/xentrace-parser.h $(OUTDIR)/xentrace-event.h
 
 # ---
 $(OUTDIR)/%.o: $(SRCDIR)/%.c
-	@$(MKD) -p $(OUTDIR)
+	@$(MKD) -p $(dir $@)
 	@$(CC) $(CFLAGS) $(CINCLD) -c $< -o $@
 
 # ---
 $(OUTDIR)/%.h: $(SRCDIR)/%.h
-	@$(MKD) -p $(OUTDIR)
-	@$(CP) $< $(OUTDIR)
+	@$(MKD) -p $(dir $@)
+	@$(CP) $< $(dir $@)
 
 # ---
 .PHONY: clean
