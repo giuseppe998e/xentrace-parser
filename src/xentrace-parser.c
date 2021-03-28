@@ -179,10 +179,10 @@ static int __upd_current_hstcpu(xentrace_parser xtp, xt_record *record) {
  * 
  */
 static int __qsort_cmpr(const void *a, const void *b) {
-    xt_record x = ((xt_event *) a)->rec,
-              y = ((xt_event *) b)->rec;
+    uint64_t x_tsc = (((xt_event *) a)->rec).tsc,
+            y_tsc  = (((xt_event *) b)->rec).tsc;
 
-    return (x.tsc > y.tsc) - (x.tsc < y.tsc);
+    return (x_tsc > y_tsc) - (x_tsc < y_tsc);
 }
 
 /**
