@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Os -s
-CINCLD = -I $(LIBDIR)
+CINCLD = -I. -I/usr/include/xen -I$(LIBDIR)/xen
 
 CP = cp
 RM = rm -f

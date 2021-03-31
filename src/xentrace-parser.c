@@ -21,8 +21,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Xen Project
+#include <trace.h>
+
 #include "xentrace-parser.h"
-#include "trace.h"
 
 #define __ARR_SSIZE 4096
 
