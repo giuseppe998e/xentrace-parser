@@ -27,25 +27,41 @@
 
 #include "xentrace-parser.h"
 
-#define __ARR_SSIZE 4096
+#define ARR_EVENTS_SSIZE 4096
+#define ARR_DOMS_SSIZE 8
 
 /**
  * XenTrace Parser instance pointer.
  */
 struct __xentrace_parser {
-    char *file;  // Trace file path
+    // Generic vars
+    char *file;         // Trace file path
+    uint64_t last_tsc;  // Last TSC readed
 
-    uint16_t higher_cpu;    // Higher CPU readed
-    uint64_t last_tsc;      // Last TSC readed
-    xt_header current_hrd;  // Current ev. header
+    // Host CPU related vars
+    struct __hcpu {
+        uint16_t current,  // Current hCPU
+                higher;    // Higher hCPU found
+    } hcpu;
 
-    struct __list {
-        uint32_t count,  // Actual elements count
-                length,  // Array real length
-                iter;    // Iterator position
-        xt_event *ptr;   // Array pointer
-    } list;
+    // Per Host CPU "current domain" related vars
+    struct __dom_l {
+        xt_domain *ptr;   // Array pointer
+        uint16_t length;  // Array Length
+    } dom_l;
+
+    // Event list related vars
+    struct __event_l {
+        xt_event *ptr;    // Array pointer
+        uint32_t length,  // Array Length
+                count,    // Elements count
+                iter;     // Iterator position
+    } event_l;
 };
+
+// Function prototypes
+static int expand_dom_list(struct __dom_l *, uint16_t);
+void xtp_free(xentrace_parser);
 
 /**
  *
@@ -55,25 +71,31 @@ xentrace_parser xtp_init(const char *file) {
     if (!file)
         return NULL;
 
-    // Initialize analyzer struct
+    // Initialize struct
     struct __xentrace_parser *xtp = calloc(1, sizeof(*xtp));
     if (!xtp)
         return NULL;
 
-    // Copy file path into analyzer struct
+    // Copy file path
     xtp->file = strdup(file);
     if (!xtp->file) {
-        free(xtp);
+        xtp_free(xtp);
         return NULL;
     }
 
-    struct __list *list = &xtp->list;
-    // Initialize events list
-    list->length = __ARR_SSIZE;
-    list->ptr = malloc(sizeof(*list->ptr) * __ARR_SSIZE);
-    if (!list->ptr) {
-        free(xtp->file);
-        free(xtp);
+    // Initialize hCPU domain list
+    int doms_ok = expand_dom_list(&xtp->dom_l, ARR_DOMS_SSIZE);
+    if (!doms_ok) {
+        xtp_free(xtp);
+        return NULL;
+    }
+
+    // Initialize event list
+    struct __event_l *event_l = &xtp->event_l;
+    event_l->length = ARR_EVENTS_SSIZE;
+    event_l->ptr = malloc(sizeof(*event_l->ptr) * ARR_EVENTS_SSIZE);
+    if (!event_l->ptr) {
+        xtp_free(xtp);
         return NULL;
     }
 
@@ -81,9 +103,64 @@ xentrace_parser xtp_init(const char *file) {
 }
 
 /**
+ * 
+ */
+static int expand_event_list(struct __event_l *event_l)  {
+    // Check if expansion is needed
+    if (event_l->count + 1 < event_l->length)
+        return -1; // Not needed
+
+    // (Try to) Expand array list
+    xt_event *new_ptr = realloc(event_l->ptr, sizeof(*event_l->ptr) * event_l->length * 2);
+    if (!new_ptr)
+        return 0;
+
+    event_l->length *= 2;
+    event_l->ptr = new_ptr;
+    return 1;
+}
+
+/**
  *
  */
-static int __read_next_record(FILE *fp, xt_record* rec) {
+static int expand_dom_list(struct __dom_l *dom_l, uint16_t cpu_id) {
+    uint32_t old_length = dom_l->length,
+            new_length  = cpu_id + 1;
+
+    // Check if expansion is needed
+    if (new_length < old_length)
+        return -1; // Not needed
+
+    // (Try to) Expand array list
+    xt_domain *new_ptr = realloc(dom_l->ptr, sizeof(*dom_l->ptr) * new_length);
+    if (!new_ptr)
+        return 0;
+
+    dom_l->length = new_length;
+    dom_l->ptr = new_ptr;
+
+    // Set all new domains to default value
+    uint32_t dom_dflt_u32 = XEN_DOM_DFLT << 16;
+    for (int i = old_length; i < new_length; ++i)
+        (dom_l->ptr[i]).u32 = dom_dflt_u32;
+
+    return 1;
+}
+
+/**
+ *
+ */
+static int __qsort_cmpr(const void *a, const void *b) {
+    uint64_t x_tsc = (((xt_event *) a)->rec).tsc,
+            y_tsc  = (((xt_event *) b)->rec).tsc;
+
+    return (x_tsc > y_tsc) - (x_tsc < y_tsc);
+}
+
+/**
+ *
+ */
+static int read_next_record(FILE *fp, xt_record* rec) {
     // Read header
     uint32_t hdr;
     if (fread(&hdr, sizeof(hdr), 1, fp) != 1)
@@ -109,71 +186,34 @@ static int __read_next_record(FILE *fp, xt_record* rec) {
 /**
  *
  */
-static int __expand_list(struct __list *list) {
-    // If it is not the "second-last" element
-    if (list->length > list->count + 1)
-        return 0; // Not needed
-
-    // Dupe array size
-    list->length *= 2;
-    xt_event *new_ptr = realloc(list->ptr, sizeof(*list->ptr) * list->length);
-
-    // If "realloc" fails
-    if (!new_ptr)
-        return -1; // Failed
-
-    // Expansion done
-    list->ptr = new_ptr;
-    return 1; // Success
-}
-
-/**
- *
- */
-static void __set_record_tsc(xentrace_parser xtp, xt_record *record) {
-    // If already included, just update "last_tsc"
-    if (record->in_tsc)
-        xtp->last_tsc = record->tsc;
-    else
+static void set_record_tsc(xentrace_parser xtp, xt_record *record) {
+    // If the record doesn't include TSC, 
+    // set it as the last record that had it 
+    // Else, update the "last_tsc" var for
+    // use it in next record(s).
+    if (!record->in_tsc)
         record->tsc = xtp->last_tsc;
+    else
+        xtp->last_tsc = record->tsc;
 }
 
 /**
  *
  */
-static int __upd_current_domvcpu(xentrace_parser xtp, xt_record *record) {
-    // Check if event is "..._to_running"
-    if ((record->id & (TRC_SCHED_MIN | 0xf0f)) != record->id)
-        return 0;
-
-    // Utility vars
-    xt_header *current_hrd = &xtp->current_hrd;
-    uint32_t domvcpu = record->extra[0];
-
-    // Update DOM and vCPU
-    current_hrd->dom  = domvcpu >> 16;
-    current_hrd->vcpu = domvcpu & 0x0000ffff;
-
-    return 1;
-}
-
-/**
- *
- */
-static int __upd_current_hstcpu(xentrace_parser xtp, xt_record *record) {
+static int upd_current_hcpu(xentrace_parser xtp, xt_record *record) {
     // Check if event is a TRC_TRACE_CPU_CHANGE
     if ((record->id & TRC_TRACE_CPU_CHANGE) != TRC_TRACE_CPU_CHANGE)
         return 0;
 
     // Utility var
-    uint16_t cpu =
+    uint16_t hcpu_curr =
         // Set current CPU
-        (xtp->current_hrd).cpu =
+        (xtp->hcpu).current =
             (uint16_t)record->extra[0];
 
     // Save a higher CPU value
-    if (cpu > xtp->higher_cpu)
-        xtp->higher_cpu = cpu;
+    if (hcpu_curr > (xtp->hcpu).higher)
+        (xtp->hcpu).higher = hcpu_curr;
 
     return 1;
 }
@@ -181,22 +221,29 @@ static int __upd_current_hstcpu(xentrace_parser xtp, xt_record *record) {
 /**
  *
  */
-static int __qsort_cmpr(const void *a, const void *b) {
-    uint64_t x_tsc = (((xt_event *) a)->rec).tsc,
-            y_tsc  = (((xt_event *) b)->rec).tsc;
+static void upd_current_domvcpu(xentrace_parser xtp, xt_record *record) {
+    // Check if event is "..._to_running"
+    if ((record->id & (TRC_SCHED_MIN | 0xf0f)) != record->id)
+        return;
 
-    return (x_tsc > y_tsc) - (x_tsc < y_tsc);
+    // Get current domain for CPU X
+    uint16_t hcpu_curr = (xtp->hcpu).current;
+    expand_dom_list(&xtp->dom_l, hcpu_curr);
+    xt_domain *current_dom = (xtp->dom_l).ptr + hcpu_curr;
+
+    // Update DOM and vCPU
+    current_dom->u32 = record->extra[0];
 }
 
 /**
  *
  */
 uint32_t xtp_execute(xentrace_parser xtp) {
-    struct __list *list = &xtp->list;
+    struct __event_l *event_l = &xtp->event_l;
 
     // If array is already populated return count
-    if (list->count)
-        return list->count;
+    if (event_l->count)
+        return event_l->count;
 
     // Initialize FILE*
     FILE *fp = fopen(xtp->file, "rb");
@@ -205,90 +252,97 @@ uint32_t xtp_execute(xentrace_parser xtp) {
 
     // Read trace's records
     xt_record rec;
-    while (__read_next_record(fp, &rec)) {
+    while (read_next_record(fp, &rec)) {
         // Update current host cpu
-        if (__upd_current_hstcpu(xtp, &rec))
+        if (upd_current_hcpu(xtp, &rec))
             continue;
 
         // Update current dom & vcpu
-        __upd_current_domvcpu(xtp, &rec);
+        upd_current_domvcpu(xtp, &rec);
 
         // Set record TSC
-        __set_record_tsc(xtp, &rec);
+        set_record_tsc(xtp, &rec);
 
         // Save record into list
         // (and give a plus one to the event counter)
-        xt_event *event = list->ptr + list->count++;
-        event->hdr = xtp->current_hrd;
+        xt_event *event = event_l->ptr + event_l->count++;
+
+        event->cpu = (xtp->hcpu).current;
+        event->dom = (xtp->dom_l).ptr[ event->cpu ];
         event->rec = rec;
 
         // Expand nodes list (if needed),
         // otherwise stop reading the trace
-        if (__expand_list(list) == -1)
+        if (!expand_event_list(event_l))
             break;
     }
 
     // Close FILE*
     fclose(fp);
 
+    // Free up no-more-needed dom list
+    free((xtp->dom_l).ptr);
+    (xtp->dom_l).ptr = NULL;
+
     // Free up unused array space
-    xt_event *new_ptr = realloc(list->ptr, sizeof(*list->ptr) * list->count);
+    xt_event *new_ptr = realloc(event_l->ptr, sizeof(*event_l->ptr) * event_l->count);
     if (new_ptr)
-        list->ptr = new_ptr;
+        event_l->ptr = new_ptr;
 
     // Sort list
-    qsort(list->ptr, list->count, sizeof(*list->ptr), __qsort_cmpr);
+    qsort(event_l->ptr, event_l->count, sizeof(*event_l->ptr), __qsort_cmpr);
 
     // Return count
-    return list->count;
+    return event_l->count;
 }
 
 /**
  *
  */
 uint16_t xtp_cpus_count(xentrace_parser xtp) {
-    return xtp->higher_cpu + 1;
+    return (xtp->hcpu).higher + 1;
 }
 
 /**
  *
  */
 uint32_t xtp_events_count(xentrace_parser xtp) {
-    return (xtp->list).count;
+    return (xtp->event_l).count;
 }
 
 /**
  *
  */
 xt_event *xtp_get_event(xentrace_parser xtp, uint32_t pos) {
-    if (pos >= (xtp->list).count)
+    if (pos >= (xtp->event_l).count)
         return NULL;
 
-    return (xtp->list).ptr + pos;
+    return (xtp->event_l).ptr + pos;
 }
 
 /**
  *
  */
 xt_event *xtp_next_event(xentrace_parser xtp) {
-    if ((xtp->list).iter >= (xtp->list).count)
+    if ((xtp->event_l).iter >= (xtp->event_l).count)
         return NULL;
 
-    return (xtp->list).ptr + (xtp->list).iter++;
+    return (xtp->event_l).ptr + (xtp->event_l).iter++;
 }
 
 /**
  *
  */
 void xtp_reset_iter(xentrace_parser xtp) {
-    (xtp->list).iter = 0;
+    (xtp->event_l).iter = 0;
 }
 
 /**
  *
  */
 void xtp_free(xentrace_parser xtp) {
-    free((xtp->list).ptr);
+    free((xtp->dom_l).ptr);
+    free((xtp->event_l).ptr);
     free(xtp->file);
     free(xtp);
 }
