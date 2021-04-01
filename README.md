@@ -6,14 +6,14 @@ Development is supervised by Dario Faggioli ([@dfaggioli](https://github.com/dfa
 ## Building
 ### Testing/Development
 ```shell
-$ git clone git@github.com:giuseppe998e/xentrace-parser.git
+$ git clone https://github.com/giuseppe998e/xentrace-parser.git
 $ cd xentrace-parser/
 $ make CFLAGS="-Wall -g"
 ```
 
 ### Optimized for usage
 ```shell
-$ git clone git@github.com:giuseppe998e/xentrace-parser.git
+$ git clone https://github.com/giuseppe998e/xentrace-parser.git
 $ cd xentrace-parser/
 $ make
 ```
