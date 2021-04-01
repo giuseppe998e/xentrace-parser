@@ -22,20 +22,21 @@
 
 #include <stdint.h>
 
-#define XEN_REC_XTRS 7
 #define XEN_DOM_IDLE 32767
+#define XEN_DOM_DFLT 32768
+
+#define XEN_REC_XTRS 7
 
 /**
- * XenTrace domain struct.
+ * Domain union.
  */
-typedef struct {
-    uint16_t dom,  // Domain
-            vcpu,  // Virtual CPU
-            cpu;   // Host CPU
-} xt_header;
+typedef union {
+    uint32_t u32;
+    struct { uint16_t vcpu, id; };
+} xt_domain;
 
 /**
- * XenTrace record struct.
+ * Record struct.
  */
 typedef struct {
     uint32_t id:28;                  // Identifier
@@ -46,10 +47,11 @@ typedef struct {
 } xt_record;
 
 /**
- * XenTrace event struct.
+ * Event struct.
  */
 typedef struct {
-    xt_header hdr;  // Header struct
+    uint16_t  cpu;  // Host CPU value
+    xt_domain dom;  // Domain struct
     xt_record rec;  // Record struct
 } xt_event;
 
