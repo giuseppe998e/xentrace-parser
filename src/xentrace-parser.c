@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <string.h>
 
 // Xen Project
@@ -67,8 +68,8 @@ void xtp_free(xentrace_parser);
  *
  */
 xentrace_parser xtp_init(const char *file) {
-    // Check if file var is not NULL
-    if (!file)
+    // Check if file exists and is readable
+    if (access(file, R_OK))
         return NULL;
 
     // Initialize struct
