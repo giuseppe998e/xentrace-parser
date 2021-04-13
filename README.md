@@ -19,5 +19,5 @@ $ make
 ```
 
 ## License
-This library is released under the `GNU Lesser General Public License v3 (or later)`.  
+This library is released under the `GNU Lesser General Public License v2.1 (or later)`.  
 This library uses code from [Xen](https://xenbits.xen.org/gitweb/?p=xen.git;a=summary): `trace.h` released under the `MIT License`.
