@@ -58,12 +58,14 @@ uint16_t xtp_cpus_count(xentrace_parser);
  */
 uint32_t xtp_events_count(xentrace_parser);
 
+// TODO Return a non-pointer value to prevent records from being modified
 /**
  * Returns the event at position X of the list.
  * Returns NULL on error.
  */
 xt_event *xtp_get_event(xentrace_parser, uint32_t);
 
+// TODO Return a non-pointer value to prevent records from being modified
 /**
  * Returns the next event in the list,
  * based on the position of the iterator.
